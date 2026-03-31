@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Medical VLM Report Assistant</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+
+    .header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+    .header-title { font-size: 18px; font-weight: 600; color: #fff; }
+    .header-sub { font-size: 12px; color: #555; margin-top: 2px; }
+    .badge-nature { padding: 3px 10px; background: #1a2a3a; border: 1px solid #2a4a6a; border-radius: 4px; font-size: 11px; color: #64b5f6; font-weight: 500; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; display: grid; grid-template-columns: 1fr 300px; gap: 24px; }
+
+    .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 24px; }
+    .card-title { font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 16px; }
+
+    .pipeline-viz { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .pipeline-step { padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .step-merlin { background: #1a2a3a; border: 1px solid #2a4a6a; color: #64b5f6; }
+    .step-rag { background: #1a3a1a; border: 1px solid #2a5a2a; color: #81c784; }
+    .step-gpt { background: #2a2a1a; border: 1px solid #4a4a2a; color: #fff176; }
+    .step-guard { background: #3a1a1a; border: 1px solid #5a2a2a; color: #ef9a9a; }
+    .pipeline-arrow { color: #444; font-size: 14px; }
+
+    .upload-area { border: 1px dashed #2a2a2a; border-radius: 6px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; }
+    .upload-area:hover { border-color: #444; background: #141414; }
+    .upload-area.dragging { border-color: #64b5f6; background: #0a1520; }
+    .upload-icon { font-size: 36px; margin-bottom: 8px; }
+    .upload-text { font-size: 14px; color: #888; }
+    .upload-hint { font-size: 11px; color: #444; margin-top: 6px; }
+    input[type="file"] { display: none; }
+
+    .or-divider { text-align: center; color: #444; font-size: 12px; margin: 16px 0; position: relative; }
+    .or-divider::before, .or-divider::after { content: ''; position: absolute; top: 50%; width: 45%; height: 1px; background: #2a2a2a; }
+    .or-divider::before { left: 0; }
+    .or-divider::after { right: 0; }
+
+    .input-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    .input-field { flex: 1; background: #141414; border: 1px solid #2a2a2a; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #e0e0e0; outline: none; }
+    .input-field:focus { border-color: #444; }
+    .input-field::placeholder { color: #444; }
+
+    .btn { padding: 10px 18px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: #e0e0e0; color: #0f0f0f; }
+    .btn-primary:hover { background: #fff; }
+    .btn-primary:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .btn-demo { background: #1a2a3a; color: #64b5f6; border: 1px solid #2a4a6a; width: 100%; }
+    .btn-demo:hover { background: #1e3347; }
+    .btn-secondary { background: transparent; color: #666; border: 1px solid #2a2a2a; }
+
+    /* Report display */
+    .report-container { margin-top: 20px; }
+    .report-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .report-title { font-size: 15px; font-weight: 600; color: #fff; }
+    .risk-badge { padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .risk-LOW { background: #1a3a1a; color: #81c784; border: 1px solid #2a5a2a; }
+    .risk-MODERATE { background: #3a2a1a; color: #ffb74d; border: 1px solid #5a4a2a; }
+    .risk-HIGH { background: #3a1a1a; color: #ef5350; border: 1px solid #5a2a2a; }
+    .risk-UNKNOWN { background: #2a2a2a; color: #888; border: 1px solid #333; }
+
+    .report-meta { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .meta-item { font-size: 11px; color: #555; }
+    .meta-value { color: #888; }
+
+    .report-section { margin-bottom: 16px; padding: 14px; background: #141414; border: 1px solid #222; border-radius: 6px; }
+    .section-label { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+    .section-content { font-size: 13px; color: #c0c0c0; line-height: 1.7; white-space: pre-wrap; }
+
+    /* Sidebar */
+    .sidebar { display: flex; flex-direction: column; gap: 16px; }
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .metric-item { padding: 12px; background: #141414; border: 1px solid #222; border-radius: 6px; }
+    .metric-value { font-size: 20px; font-weight: 600; color: #e0e0e0; }
+    .metric-label { font-size: 11px; color: #555; margin-top: 2px; }
+
+    .risk-dist { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .risk-bar { display: flex; align-items: center; gap: 8px; }
+    .risk-label { font-size: 11px; color: #666; width: 70px; }
+    .risk-track { flex: 1; height: 4px; background: #222; border-radius: 2px; }
+    .risk-fill { height: 100%; border-radius: 2px; }
+    .fill-low { background: #81c784; }
+    .fill-moderate { background: #ffb74d; }
+    .fill-high { background: #ef5350; }
+    .risk-count { font-size: 11px; color: #555; width: 20px; text-align: right; }
+
+    .model-info { padding: 12px; background: #0a1520; border: 1px solid #1a3a5a; border-radius: 6px; }
+    .model-name { font-size: 12px; color: #64b5f6; font-weight: 500; }
+    .model-detail { font-size: 11px; color: #446; margin-top: 4px; }
+
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #333; border-top-color: #888; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .progress-steps { display: flex; flex-direction: column; gap: 8px; padding: 16px; background: #141414; border-radius: 6px; margin-top: 16px; }
+    .progress-step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #666; }
+    .progress-step.active { color: #e0e0e0; }
+    .progress-step.done { color: #81c784; }
+    .step-icon { width: 16px; text-align: center; }
+
+    .empty-state { text-align: center; padding: 48px 20px; color: #444; }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-text { font-size: 14px; line-height: 1.6; }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px; font-size: 13px; z-index: 1000; animation: slideIn 0.3s ease; }
+    .toast.error { border-color: #5a2a2a; color: #ef5350; }
+    .toast.success { border-color: #2a5a2a; color: #81c784; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const API = 'http://localhost:8001';
+
+    const STEPS = [
+      { id: 'upload', label: 'CT scan uploaded', icon: '📁' },
+      { id: 'merlin', label: 'Merlin extracting 3D features (2048-dim)', icon: '🧠' },
+      { id: 'rag', label: 'RAG retrieving similar cases', icon: '🔍' },
+      { id: 'gpt', label: 'GPT-4o generating clinical report', icon: '📝' },
+      { id: 'done', label: 'Report ready', icon: '✅' },
+    ];
+
+    function App() {
+      const [report, setReport] = React.useState(null);
+      const [loading, setLoading] = React.useState(false);
+      const [currentStep, setCurrentStep] = React.useState(-1);
+      const [metrics, setMetrics] = React.useState(null);
+      const [description, setDescription] = React.useState('Abdominal CT scan for evaluation');
+      const [toast, setToast] = React.useState(null);
+      const [dragging, setDragging] = React.useState(false);
+      const fileRef = React.useRef(null);
+
+      React.useEffect(() => { fetchMetrics(); }, []);
+
+      const showToast = (msg, type='success') => {
+        setToast({msg, type});
+        setTimeout(() => setToast(null), 3000);
+      };
+
+      const fetchMetrics = async () => {
+        try {
+          const r = await fetch(`${API}/metrics`);
+          setMetrics(await r.json());
+        } catch {}
+      };
+
+      const simulateSteps = async (apiFn) => {
+        setLoading(true);
+        setReport(null);
+        setCurrentStep(0);
+        await new Promise(r => setTimeout(r, 400));
+        setCurrentStep(1);
+        const result = await apiFn();
+        setCurrentStep(2);
+        await new Promise(r => setTimeout(r, 300));
+        setCurrentStep(3);
+        await new Promise(r => setTimeout(r, 300));
+        setCurrentStep(4);
+        setReport(result);
+        setLoading(false);
+        fetchMetrics();
+        return result;
+      };
+
+      const handleDemo = async () => {
+        try {
+          await simulateSteps(async () => {
+            const r = await fetch(`${API}/analyze/demo`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({patient_description: description})
+            });
+            if (!r.ok) throw new Error(await r.text());
+            return await r.json();
+          });
+        } catch(e) {
+          setLoading(false);
+          setCurrentStep(-1);
+          showToast(`Error: ${e.message}`, 'error');
+        }
+      };
+
+      const handleUpload = async (file) => {
+        if (!file) return;
+        try {
+          await simulateSteps(async () => {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('patient_description', description);
+            const r = await fetch(`${API}/analyze?patient_description=${encodeURIComponent(description)}`, {
+              method: 'POST', body: fd
+            });
+            if (!r.ok) throw new Error(await r.text());
+            return await r.json();
+          });
+        } catch(e) {
+          setLoading(false);
+          setCurrentStep(-1);
+          showToast(`Error: ${e.message}`, 'error');
+        }
+      };
+
+      const totalAnalyses = metrics?.total_analyses || 0;
+      const dist = metrics?.risk_distribution || {};
+      const maxRisk = Math.max(dist.HIGH||0, dist.MODERATE||0, dist.LOW||0, 1);
+
+      return (
+        <div>
+          <div className="header">
+            <div>
+              <div className="header-title">Medical VLM Report Assistant</div>
+              <div className="header-sub">Stanford Merlin · RAG · GPT-4o · Clinical Report Generation</div>
+            </div>
+            <span className="badge-nature">📄 Nature 2026</span>
+          </div>
+
+          <div className="container">
+            <div>
+              <div className="card">
+                <div className="card-title">Pipeline</div>
+                <div className="pipeline-viz">
+                  <span className="pipeline-step step-merlin">🧠 Merlin 3D VLM</span>
+                  <span className="pipeline-arrow">→</span>
+                  <span className="pipeline-step step-rag">🔍 RAG Retrieval</span>
+                  <span className="pipeline-arrow">→</span>
+                  <span className="pipeline-step step-gpt">✨ GPT-4o</span>
+                  <span className="pipeline-arrow">→</span>
+                  <span className="pipeline-step step-guard">🛡 Guardrails</span>
+                  <span className="pipeline-arrow">→</span>
+                  <span className="pipeline-step step-merlin">📋 Clinical Report</span>
+                </div>
+
+                <input
+                  className="input-field"
+                  style={{width:'100%', marginBottom:12}}
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="Patient description / clinical context..."
+                />
+
+                <input ref={fileRef} type="file" accept=".nii,.nii.gz" onChange={e => handleUpload(e.target.files[0])} />
+                <div
+                  className={`upload-area ${dragging ? 'dragging' : ''}`}
+                  onClick={() => fileRef.current.click()}
+                  onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={e => { e.preventDefault(); setDragging(false); handleUpload(e.dataTransfer.files[0]); }}
+                >
+                  <div className="upload-icon">🫁</div>
+                  <div className="upload-text">Upload CT scan (.nii or .nii.gz)</div>
+                  <div className="upload-hint">Drag and drop or click to browse</div>
+                </div>
+
+                <div className="or-divider">or use demo CT scan</div>
+
+                <button className="btn btn-demo" onClick={handleDemo} disabled={loading}>
+                  {loading ? <><span className="spinner"></span>Analyzing...</> : '🔬 Run Demo Analysis (Merlin sample CT)'}
+                </button>
+
+                {loading && (
+                  <div className="progress-steps">
+                    {STEPS.map((step, i) => (
+                      <div key={step.id} className={`progress-step ${i === currentStep ? 'active' : i < currentStep ? 'done' : ''}`}>
+                        <span className="step-icon">
+                          {i < currentStep ? '✓' : i === currentStep ? <span className="spinner" style={{width:12,height:12}}></span> : '○'}
+                        </span>
+                        {step.icon} {step.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!loading && !report && (
+                  <div className="empty-state">
+                    <div className="empty-icon">🏥</div>
+                    <div className="empty-text">
+                      Upload a CT scan or run the demo<br/>
+                      to generate an AI-powered clinical report<br/>
+                      <span style={{fontSize:11, color:'#333', marginTop:8, display:'block'}}>
+                        Powered by Stanford Merlin (Nature 2026) + GPT-4o
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {report && !loading && (
+                  <div className="report-container">
+                    <div className="report-header">
+                      <div className="report-title">Clinical Report</div>
+                      <span className={`risk-badge risk-${report.risk_level || 'UNKNOWN'}`}>
+                        {report.risk_level || 'UNKNOWN'} RISK
+                      </span>
+                    </div>
+
+                    <div className="report-meta">
+                      <span className="meta-item">⏱ <span className="meta-value">{report.latency_ms}ms</span></span>
+                      <span className="meta-item">🧠 <span className="meta-value">Merlin {report.embedding_dim}-dim embedding</span></span>
+                      <span className="meta-item">📚 <span className="meta-value">{report.similar_cases_found} similar cases retrieved</span></span>
+                    </div>
+
+                    {report.findings && (
+                      <div className="report-section">
+                        <div className="section-label">Findings</div>
+                        <div className="section-content">{report.findings}</div>
+                      </div>
+                    )}
+                    {report.impression && (
+                      <div className="report-section">
+                        <div className="section-label">Impression</div>
+                        <div className="section-content">{report.impression}</div>
+                      </div>
+                    )}
+                    {report.recommendations && (
+                      <div className="report-section">
+                        <div className="section-label">Recommendations</div>
+                        <div className="section-content">{report.recommendations}</div>
+                      </div>
+                    )}
+                    {report.icd10_codes && (
+                      <div className="report-section">
+                        <div className="section-label">ICD-10 Codes</div>
+                        <div className="section-content">{report.icd10_codes}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="sidebar">
+              <div className="card">
+                <div className="model-info">
+                  <div className="model-name">🧠 Stanford Merlin</div>
+                  <div className="model-detail">3D CT VLM · Nature 2026<br/>Pretrained on 1.8M CT scans + EHR</div>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="card-title">Live Metrics</div>
+                <div className="metrics-grid">
+                  <div className="metric-item">
+                    <div className="metric-value">{totalAnalyses}</div>
+                    <div className="metric-label">Analyses</div>
+                  </div>
+                  <div className="metric-item">
+                    <div className="metric-value">{metrics?.avg_latency_ms ? `${Math.round(metrics.avg_latency_ms/1000)}s` : '—'}</div>
+                    <div className="metric-label">Avg Time</div>
+                  </div>
+                </div>
+                {totalAnalyses > 0 && (
+                  <div className="risk-dist">
+                    <div style={{fontSize:11, color:'#555', marginBottom:4}}>Risk Distribution</div>
+                    {[['HIGH', 'fill-high'], ['MODERATE', 'fill-moderate'], ['LOW', 'fill-low']].map(([level, cls]) => (
+                      <div key={level} className="risk-bar">
+                        <span className="risk-label">{level}</span>
+                        <div className="risk-track">
+                          <div className={`risk-fill ${cls}`} style={{width: `${((dist[level]||0)/maxRisk)*100}%`}}></div>
+                        </div>
+                        <span className="risk-count">{dist[level]||0}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button className="btn btn-secondary" style={{width:'100%', marginTop:12, fontSize:11}} onClick={fetchMetrics}>Refresh</button>
+              </div>
+
+              <div className="card">
+                <div className="card-title">Capabilities</div>
+                {[
+                  ['🫁', 'CT 3D ImageEmbedding', '2048-dim features'],
+                  ['🔍', 'RAG Report Retrieval', 'Similar case search'],
+                  ['✨', 'GPT-4o Generation', 'Structured reports'],
+                  ['🏷', 'ICD-10 Coding', 'Diagnosis codes'],
+                  ['⚠️', 'Risk Stratification', 'LOW/MOD/HIGH'],
+                ].map(([icon, title, sub]) => (
+                  <div key={title} style={{display:'flex', gap:10, padding:'8px 0', borderBottom:'1px solid #1a1a1a'}}>
+                    <span style={{fontSize:16}}>{icon}</span>
+                    <div>
+                      <div style={{fontSize:12, color:'#c0c0c0'}}>{title}</div>
+                      <div style={{fontSize:11, color:'#555'}}>{sub}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {toast && <div className={`toast ${toast.type}`}>{toast.msg}</div>}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
