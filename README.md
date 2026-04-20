@@ -13,6 +13,8 @@
 
 **Architecture & Results**: http://3.151.59.179:8001
 
+![System Demo](docs/demo.png)
+
 ---
 
 ## What I Built on Top of Med3DVLM
