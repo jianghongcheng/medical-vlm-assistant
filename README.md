@@ -57,19 +57,6 @@ JSON Response
 
 ---
 
-## V1 vs V2
-
-| Dimension | V1: Merlin+GPT-4o | V2: Med3DVLM |
-|-----------|-------------------|--------------|
-| CT Feature | mean/std/norm (3 scalars) | Full 3D volume (DCFormer) |
-| Retrieval | Text RAG | **Image RAG (SigLIP)** |
-| Alignment | ❌ None | ✅ SigLIP |
-| Generation | GPT-4o ($0.0003/q) | **Qwen2.5-7B ($0)** |
-| Latency | ~13s CPU | **~3s RTX 3090** |
-| Recall@1 | 0.696 (64 cand.) | **61.00% (2000 cand.)** |
-
----
-
 ## Quick Start
 
 ```bash
