@@ -1,96 +1,100 @@
-# Medical VLM Report Assistant
+# Medical VLM CT Report Generation System
 
-> **CT radiology report generation** using Stanford Merlin (Nature 2026) 3D Vision-Language Model + RAG + GPT-4o — with ICD-10 coding, risk stratification, and clinical guardrails.
+> **End-to-end CT radiology report generation** based on **Med3DVLM (IEEE JBHI 2025)** — DCFormer 3D encoder + SigLIP contrastive alignment + Qwen2.5-7B LLM + Image RAG via Qdrant. Fully local inference, no GPT-4o dependency.
 
-[![Nature 2026](https://img.shields.io/badge/Nature-2026-blue)](https://doi.org/10.1038/s41586-026-10181-8)
-[![Python](https://img.shields.io/badge/Python-3.10-blue)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688)](https://fastapi.tiangolo.com)
-[![GPT-4o](https://img.shields.io/badge/GPT--4o-OpenAI-412991)](https://openai.com)
-
----
-
-## Demo
-
-![Demo](docs/demo.png)
+[![IEEE JBHI 2025](https://img.shields.io/badge/IEEE_JBHI-2025-blue)](https://ieeexplore.ieee.org/document/11145341/)
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)](https://fastapi.tiangolo.com)
+[![RTX 3090](https://img.shields.io/badge/GPU-RTX_3090-76b900)](https://www.nvidia.com)
 
 ---
 
-## Pipeline
-```
-CT scan (.nii.gz)
-      ↓
-Stanford Merlin (Nature 2026)
-3D CT VLM → 2048-dim embedding
-      ↓
-RAG Retrieval
-Similar case search (Qdrant)
-      ↓
-GPT-4o Report Generation
-Structured clinical report
-      ↓
-Output: Findings · Impression · ICD-10 · Risk Level
-```
+## Live Demo
+
+**Architecture & Results**: http://3.151.59.179:8001
 
 ---
 
-## Key Results
+## What I Built on Top of Med3DVLM
+
+| Contribution | Description |
+|-------------|-------------|
+| **Structured Perception** | 6-question VQA before report generation → reduces hallucination |
+| **Image RAG System** | DCFormer-SigLIP → Qdrant → Top-3 similar CT retrieval |
+| **Uncertainty Estimation** | Multi-sample consistency → HIGH/MEDIUM/LOW confidence |
+| **Clinical Safety Layer** | Always DRAFT, review_required: True, risk term detection |
+| **End-to-end Deployment** | FastAPI + Web UI + SQLite monitoring |
+
+---
+
+## 4-Stage Pipeline
+
+CT (.nii.gz)
+↓
+Stage 1: Structured VQA Perception    → 79.95% accuracy
+↓
+Stage 2: Image RAG (DCFormer-SigLIP)  → Recall@1 = 61.00%
+↓
+Stage 3: Report + Uncertainty         → METEOR = 36.42%
+↓
+Stage 4: Safety Layer                 → Always DRAFT
+↓
+JSON Response
+
+---
+
+## Experimental Results (RTX 3090)
 
 | Metric | Value |
 |--------|-------|
-| CT Embedding | **2048-dim** (Merlin 3D VLM) |
-| Similar Cases Retrieved | **3** per scan |
-| Avg Pipeline Latency | **~13s** (CPU) |
-| Report Sections | Findings · Impression · Recommendations · ICD-10 |
-| Risk Levels | LOW / MODERATE / HIGH |
+| Image-Text Recall@1 | **61.00%** (2000 candidates) |
+| Report METEOR | **36.42%** |
+| VQA Accuracy | **79.95%** |
+| Inference Latency | **~3s** (full pipeline) |
+| Cost per Query | **$0** (fully local) |
 
 ---
 
-## Components
+## V1 vs V2
 
-### Stanford Merlin (Nature 2026)
-- 3D CT Vision-Language Model
-- Pretrained on 1.8M CT scans + EHR data
-- Extracts 2048-dimensional image embeddings
-- [Paper](https://doi.org/10.1038/s41586-026-10181-8) | [HuggingFace](https://huggingface.co/stanfordmimi/Merlin)
-
-### RAG Pipeline
-- Qdrant vector database for similar case retrieval
-- sentence-transformers embeddings
-- 5 curated radiology report templates
-
-### GPT-4o Report Generation
-- Structured output: Findings, Impression, Recommendations, ICD-10 codes
-- Risk stratification: LOW / MODERATE / HIGH
-- Clinical context from retrieved similar cases
-
-### FastAPI + React Frontend
-- CT file upload (.nii / .nii.gz)
-- Demo mode with Merlin sample CT
-- Live metrics dashboard
-- Real-time pipeline progress visualization
+| Dimension | V1: Merlin+GPT-4o | V2: Med3DVLM |
+|-----------|-------------------|--------------|
+| CT Feature | mean/std/norm (3 scalars) | Full 3D volume (DCFormer) |
+| Retrieval | Text RAG | **Image RAG (SigLIP)** |
+| Alignment | ❌ None | ✅ SigLIP |
+| Generation | GPT-4o ($0.0003/q) | **Qwen2.5-7B ($0)** |
+| Latency | ~13s CPU | **~3s RTX 3090** |
+| Recall@1 | 0.696 (64 cand.) | **61.00% (2000 cand.)** |
 
 ---
 
 ## Quick Start
+
 ```bash
-# 1. Create environment
-conda create -n merlin_env python=3.10
-conda activate merlin_env
+git clone https://github.com/jianghongcheng/medical-vlm-assistant.git
+cd medical-vlm-assistant
 
-# 2. Install dependencies
-pip install merlin-vlm fastapi uvicorn openai qdrant-client sentence-transformers python-multipart rich pandas requests
+# Setup Med3DVLM
+git clone https://github.com/mirthAI/Med3DVLM.git ../Med3DVLM
+ln -sf ../Med3DVLM/src ./src
+ln -sf ../Med3DVLM/models ./models
 
-# 3. Set environment variables
-cp .env.example api/.env
-# Add your OPENAI_API_KEY
+# Download models
+python -c "
+from huggingface_hub import snapshot_download
+snapshot_download('MagicXin/DCFormer_SigLIP', local_dir='./models/DCFormer_SigLIP')
+snapshot_download('MagicXin/Med3DVLM-Qwen-2.5-7B', local_dir='./models/Med3DVLM-Qwen-2.5-7B')
+"
 
-# 4. Start Qdrant
+# Install & run
+conda create -n Med3DVLM python=3.12 && conda activate Med3DVLM
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+pip install fastapi uvicorn python-multipart qdrant-client SimpleITK transformers
+
 docker run -d -p 6333:6333 qdrant/qdrant
-
-# 5. Start API
-cd api
-python vlm_api.py
-# Open http://localhost:8001
+python scripts/populate_qdrant.py
+export PYTHONPATH=$(pwd):$PYTHONPATH
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8001
 ```
 
 ---
@@ -99,21 +103,33 @@ python vlm_api.py
 
 | Layer | Technology |
 |-------|-----------|
-| 3D VLM | Stanford Merlin (Nature 2026) |
-| LLM | GPT-4o |
+| 3D VLM | Med3DVLM (IEEE JBHI 2025) |
+| Vision Encoder | DCFormer |
+| Alignment | SigLIP |
+| LLM | Qwen2.5-7B |
 | Vector DB | Qdrant |
-| Embeddings | sentence-transformers/all-MiniLM-L6-v2 |
 | API | FastAPI |
-| Frontend | React 18 |
-| CT Processing | MONAI, NiBabel |
+| Hardware | RTX 3090 (24GB) |
+
+---
+
+## Citation
+
+```bibtex
+@article{xin2025med3dvlm,
+  title={Med3DVLM: An Efficient Vision-Language Model for 3D Medical Image Analysis},
+  author={Xin, Yu and Ates, Gorkem Can and Gong, Kuang and Shao, Wei},
+  journal={IEEE Journal of Biomedical and Health Informatics},
+  year={2025},
+  doi={10.1109/JBHI.2025.3604595}
+}
+```
 
 ---
 
 ## Author
 
-**Hongcheng Jiang** — PhD ECE, UMKC (GPA: 4.0)
-
-9 publications: CVPR · IEEE JSTARS · IEEE SMC · WACV · Infrared Physics & Technology
+**Hongcheng (Gabe) Jiang** — PhD ECE, UMKC (GPA: 4.0)
 
 [![GitHub](https://img.shields.io/badge/GitHub-jianghongcheng-black)](https://github.com/jianghongcheng)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://www.linkedin.com/in/hongcheng-jiang-a31860181)
